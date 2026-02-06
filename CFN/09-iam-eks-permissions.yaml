@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Least-privilege IAM policy to allow creating/updating/deleting an EKS Cluster
+  and EKS Managed Nodegroups via CloudFormation. Attaches inline to an existing
+  IAM User or Role. Imports Cluster/Node role ARNs by default, or accept via params.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Logical project prefix used in your exports (e.g., gla-eks)
+  UserName:
+    Type: String
+    Default: AvtarS
+    Description: Existing IAM User to attach this policy to. Leave blank if attaching to a Role.
+  RoleName:
+    Type: String
+    Default: ''
+    Description: Existing IAM Role to attach this policy to. Leave blank if attaching to a User.
+  ClusterRoleArn:
+    Type: String
+    Default: ''
+    Description: (Optional) EKS Cluster Role ARN. If blank, imports ${ProjectName}:ClusterRoleArn
+  NodeRoleArn:
+    Type: String
+    Default: ''
+    Description: (Optional) EKS Node Role ARN. If blank, imports ${ProjectName}:NodeRoleArn
+
+Conditions:
+  AttachToUser: !And
+    - !Not [ !Equals [ !Ref UserName, '' ] ]
+    - !Equals [ !Ref RoleName, '' ]
+  AttachToRole: !And
+    - !Not [ !Equals [ !Ref RoleName, '' ] ]
+    - !Equals [ !Ref UserName, '' ]
+  HasClusterRoleArnParam: !Not [ !Equals [ !Ref ClusterRoleArn, '' ] ]
+  HasNodeRoleArnParam:    !Not [ !Equals [ !Ref NodeRoleArn, '' ] ]
+
+Resources:
+  # Inline policy attached to USER
+  EksCfnPermissionsForUser:
+    Type: AWS::IAM::Policy
+    Condition: AttachToUser
+    Properties:
+      PolicyName: !Sub '${ProjectName}-cfn-eks-permissions'
+      Users:
+        - !Ref UserName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # ---- EKS Cluster permissions ----
+          - Sid: EksClusterBase
+            Effect: Allow
+            Action:
+              - eks:CreateCluster
+              - eks:DescribeCluster
+              - eks:ListClusters
+              - eks:TagResource
+              - eks:UntagResource
+              - eks:UpdateClusterConfig
+              - eks:UpdateClusterVersion
+              - eks:DeleteCluster
+            Resource: "*"
+
+          # ---- EKS Nodegroup permissions ----
+          - Sid: EksNodegroupBase
+            Effect: Allow
+            Action:
+              - eks:CreateNodegroup
+              - eks:DescribeNodegroup
+              - eks:ListNodegroups
+              - eks:TagResource
+              - eks:UntagResource
+              - eks:UpdateNodegroupConfig
+              - eks:UpdateNodegroupVersion
+              - eks:DeleteNodegroup
+            Resource: "*"
+
+          # ---- iam:PassRole for Cluster role ----
+          - Sid: PassClusterRoleToEks
+            Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:GetRole
+              - iam:ListAttachedRolePolicies
+            Resource: !If
+              - HasClusterRoleArnParam
+              - !Ref ClusterRoleArn
+              - Fn::ImportValue:
+                  Fn::Sub: '${ProjectName}:ClusterRoleArn'
+            Condition:
+              StringEquals:
+                iam:PassedToService: eks.amazonaws.com
+
+          # ---- iam:PassRole for Node role ----
+          - Sid: PassNodeRoleToEks
+            Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:GetRole
+              - iam:ListAttachedRolePolicies
+            Resource: !If
+              - HasNodeRoleArnParam
+              - !Ref NodeRoleArn
+              - Fn::ImportValue:
+                  Fn::Sub: '${ProjectName}:NodeRoleArn'
+            Condition:
+              StringEquals:
+                iam:PassedToService: eks.amazonaws.com
+
+          # ---- Create service-linked roles (EKS & Auto Scaling) ----
+          - Sid: CreateServiceLinkedRoles
+            Effect: Allow
+            Action: iam:CreateServiceLinkedRole
+            Resource: "*"
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - eks.amazonaws.com
+                  - autoscaling.amazonaws.com
+
+          # ---- Describe networking (for cluster creation) ----
+          - Sid: DescribeNetworking
+            Effect: Allow
+            Action:
+              - ec2:DescribeVpcs
+              - ec2:DescribeSubnets
+              - ec2:DescribeRouteTables
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeDhcpOptions
+            Resource: "*"
+
+          # ---- Optional CloudWatch Logs discovery ----
+          - Sid: OptionalLogsDiscovery
+            Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+            Resource: "*"
+
+  # Inline policy attached to ROLE
+  EksCfnPermissionsForRole:
+    Type: AWS::IAM::Policy
+    Condition: AttachToRole
+    Properties:
+      PolicyName: !Sub '${ProjectName}-cfn-eks-permissions'
+      Roles:
+        - !Ref RoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EksClusterBase
+            Effect: Allow
+            Action:
+              - eks:CreateCluster
+              - eks:DescribeCluster
+              - eks:ListClusters
+              - eks:TagResource
+              - eks:UntagResource
+              - eks:UpdateClusterConfig
+              - eks:UpdateClusterVersion
+              - eks:DeleteCluster
+            Resource: "*"
+
+          - Sid: EksNodegroupBase
+            Effect: Allow
+            Action:
+              - eks:CreateNodegroup
+              - eks:DescribeNodegroup
+              - eks:ListNodegroups
+              - eks:TagResource
+              - eks:UntagResource
+              - eks:UpdateNodegroupConfig
+              - eks:UpdateNodegroupVersion
+              - eks:DeleteNodegroup
+            Resource: "*"
+
+          - Sid: PassClusterRoleToEks
+            Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:GetRole
+              - iam:ListAttachedRolePolicies
+            Resource: !If
+              - HasClusterRoleArnParam
+              - !Ref ClusterRoleArn
+              - Fn::ImportValue:
+                  Fn::Sub: '${ProjectName}:ClusterRoleArn'
+            Condition:
+              StringEquals:
+                iam:PassedToService: eks.amazonaws.com
+
+          - Sid: PassNodeRoleToEks
+            Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:GetRole
+              - iam:ListAttachedRolePolicies
+            Resource: !If
+              - HasNodeRoleArnParam
+              - !Ref NodeRoleArn
+              - Fn::ImportValue:
+                  Fn::Sub: '${ProjectName}:NodeRoleArn'
+            Condition:
+              StringEquals:
+                iam:PassedToService: eks.amazonaws.com
+
+          - Sid: CreateServiceLinkedRoles
+            Effect: Allow
+            Action: iam:CreateServiceLinkedRole
+            Resource: "*"
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - eks.amazonaws.com
+                  - autoscaling.amazonaws.com
+
+          - Sid: DescribeNetworking
+            Effect: Allow
+            Action:
+              - ec2:DescribeVpcs
+              - ec2:DescribeSubnets
+              - ec2:DescribeRouteTables
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeDhcpOptions
+            Resource: "*"
+
+          - Sid: OptionalLogsDiscovery
+            Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+            Resource: "*"
+
+Outputs:
+  AttachedTo:
+    Value: !If
+      - AttachToUser
+      - !Sub 'User:${UserName}'
+      - !Sub 'Role:${RoleName}'
+  Notes:
+    Value: !Sub 'If ClusterRoleArn/NodeRoleArn are empty, imports ${ProjectName}:ClusterRoleArn and ${ProjectName}:NodeRoleArn'

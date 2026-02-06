@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Alias A record to existing ALB
+
+Parameters:
+  ProjectName:
+    Type: String
+  RecordName:
+    Type: String
+    Description: FQDN, e.g., app.mylab.example.aws
+  AlbDnsName:
+    Type: String
+    Description: e.g., k8s-demoing-123456.ap-south-1.elb.amazonaws.com
+  AlbHostedZoneId:
+    Type: String
+    Description: The ALB canonical hosted zone ID (from ELBv2 API)
+
+Resources:
+  AliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: '${ProjectName}:HostedZoneId'
+      Name: !Ref RecordName
+      Type: A
+      AliasTarget:
+        DNSName: !Sub 'dualstack.${AlbDnsName}'
+        HostedZoneId: !Ref AlbHostedZoneId
+        EvaluateTargetHealth: false

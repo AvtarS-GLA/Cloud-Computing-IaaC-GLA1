@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IRSA role for AWS Load Balancer Controller
+
+Parameters:
+  ProjectName:
+    Type: String
+  OidcIssuerUrl:
+    Type: String
+    Description: The cluster OIDC issuer URL, e.g. https://oidc.eks.ap-south-1.amazonaws.com/id/XXXXXXXX
+  ServiceAccountNamespace:
+    Type: String
+    Default: kube-system
+  ServiceAccountName:
+    Type: String
+    Default: aws-load-balancer-controller
+
+Resources:
+  OIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: !Ref OidcIssuerUrl
+      ClientIdList: [ sts.amazonaws.com ]
+      ThumbprintList:
+        - 9e99a48a9960b14926bb7f3b02e22da0afd10df6
+
+  AlbControllerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-alb-controller'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OIDCProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                # 'aud' is required
+                Fn::Sub: >
+                  ${OidcIssuerUrl#https://}:aud: sts.amazonaws.com
+                # SA subject
+                Fn::Sub: >
+                  ${OidcIssuerUrl#https://}:sub: system:serviceaccount:${ServiceAccountNamespace}:${ServiceAccountName}
+
+Outputs:
+  AlbControllerRoleArn:
+    Value: !GetAtt AlbControllerRole.Arn
+    Export: { Name: !Sub '${ProjectName}:AlbControllerRoleArn' }

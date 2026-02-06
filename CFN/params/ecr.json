@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "gla-eks"
+  },
+  {
+    "ParameterKey": "EcrRepositoryName",
+    "ParameterValue": "demo-app"
+  }
+]

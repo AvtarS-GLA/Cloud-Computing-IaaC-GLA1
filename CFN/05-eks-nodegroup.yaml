@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EKS Managed Node Group (imports cluster name, node role, and subnets via exports)
+
+Parameters:
+  ProjectName:
+    Type: String
+  NodeInstanceType:
+    Type: String
+    Default: t3.micro
+  DesiredCapacity:
+    Type: Number
+    Default: 1
+  MinSize:
+    Type: Number
+    Default: 1
+  MaxSize:
+    Type: Number
+    Default: 2
+  AmiType:
+    Type: String
+    Default: AL2_x86_64
+    AllowedValues:
+      - AL2_x86_64
+      - AL2_x86_64_GPU
+      - AL2_ARM_64
+      - AL2023_x86_64_STANDARD
+      - AL2023_ARM_64_STANDARD
+
+Resources:
+  NodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName:
+        Fn::ImportValue:
+          Fn::Sub: '${ProjectName}:ClusterName'
+      NodegroupName:
+        Fn::Sub: '${ProjectName}-ng'
+      NodeRole:
+        Fn::ImportValue:
+          Fn::Sub: '${ProjectName}:NodeRoleArn'
+      Subnets:
+        Fn::Split:
+          - ','
+          - Fn::ImportValue:
+              Fn::Sub: '${ProjectName}:PublicSubnets'
+      ScalingConfig:
+        DesiredSize: !Ref DesiredCapacity
+        MinSize: !Ref MinSize
+        MaxSize: !Ref MaxSize
+      AmiType: !Ref AmiType
+      InstanceTypes:
+        - !Ref NodeInstanceType
+
+Outputs:
+  NodegroupName:
+    Value: !Ref NodeGroup
+    Export:
+      Name:
+        Fn::Sub: '${ProjectName}:NodegroupName'

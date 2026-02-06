@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EKS control plane (imports VPC/Subnet exports and IAM ClusterRole)
+
+Parameters:
+  ProjectName:
+    Type: String
+  ClusterVersion:
+    Type: String
+    Default: "1.29"
+
+Resources:
+  ClusterSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName} EKS Cluster SG'
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: '${ProjectName}:VpcId'
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref ProjectName
+      Version: !Ref ClusterVersion
+      RoleArn:
+        Fn::ImportValue:
+          Fn::Sub: '${ProjectName}:ClusterRoleArn'
+      ResourcesVpcConfig:
+        SubnetIds:
+          Fn::Split:
+            - ','
+            - Fn::ImportValue:
+                Fn::Sub: '${ProjectName}:PublicSubnets'
+        SecurityGroupIds:
+          - !Ref ClusterSG
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: false
+
+Outputs:
+  ClusterName:
+    Value: !Ref ProjectName
+    Export:
+      Name:
+        Fn::Sub: '${ProjectName}:ClusterName'
+
+  ClusterArn:
+    Value: !GetAtt EKSCluster.Arn
+    Export:
+      Name:
+        Fn::Sub: '${ProjectName}:ClusterArn'

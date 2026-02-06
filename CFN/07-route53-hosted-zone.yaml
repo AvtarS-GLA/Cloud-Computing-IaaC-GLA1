@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Public hosted zone (incurs small monthly charge)
+
+Parameters:
+  ProjectName:
+    Type: String
+  HostedZoneName:
+    Type: String
+    Description: e.g., mylab.example.aws (no trailing dot)
+
+Resources:
+  PublicHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref HostedZoneName
+      HostedZoneConfig:
+        Comment: !Sub 'Hosted zone for ${ProjectName}'
+
+Outputs:
+  HostedZoneId:
+    Value: !Ref PublicHostedZone
+    Export: { Name: !Sub '${ProjectName}:HostedZoneId' }
+  HostedZoneName:
+    Value: !Ref HostedZoneName
+    Export: { Name: !Sub '${ProjectName}:HostedZoneName' }

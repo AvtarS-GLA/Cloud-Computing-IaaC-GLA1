@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository with simple lifecycle policy
+
+Parameters:
+  ProjectName:
+    Type: String
+  EcrRepositoryName:
+    Type: String
+    Default: demo-app
+
+Resources:
+  Repo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref EcrRepositoryName
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Keep last 5 images",
+              "selection": { "tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": 5 },
+              "action": { "type": "expire" }
+            }]
+          }
+
+Outputs:
+  EcrRepositoryUri:
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRepositoryName}"
+    Export: { Name: !Sub '${ProjectName}:EcrRepositoryUri' }
