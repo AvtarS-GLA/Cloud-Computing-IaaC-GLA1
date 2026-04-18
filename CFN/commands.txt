@@ -1,0 +1,35 @@
+1. aws sts get-caller-identity
+3. aws cloudformation deploy --stack-name cluster-vpc --template-file CFN/01-vpc.yaml --parameter-overrides (Get-Content CFN/params/vpc.json | ConvertFrom-Json | %{ "$($_.ParameterKey)=$($_.ParameterValue)" }) --capabilities CAPABILITY_NAMED_IAM
+4. aws cloudformation deploy --stack-name eks-cluster-vpc --template-file CFN/01-vpc.yaml --parameter-overrides ProjectName=eks-demo VpcCidr=10.0.0.0/16 PublicSubnet1Cidr=10.0.1.0/24 PublicSubnet2Cidr=10.0.2.0/24 PrivateSubnet1Cidr=10.0.3.0/24 PrivateSubnet2Cidr=10.0.4.0/24 --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+5. aws cloudformation deploy --stack-name eks-cluster-iam --template-file CFN/02-iam-eks-roles.yaml --parameter-overrides ProjectName=eks-demo --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+6. aws cloudformation deploy --stack-name eks-cluster-ecr --template-file CFN/03-ecr.yaml --parameter-overrides ProjectName=eks-demo --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+7. aws cloudformation deploy --stack-name eks-cluster --template-file CFN/04-eks-cluster.yaml --parameter-overrides ProjectName=eks-demo --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+8. aws cloudformation deploy --stack-name eks-node-group --template-file CFN/05-eks-nodegroup.yaml --parameter-overrides ProjectName=eks-demo --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+9. aws cloudformation deploy --stack-name eks-alb-controller --template-file CFN/06-irsa-alb-controller-role.yaml --parameter-overrides ProjectName=eks-demo --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+10. aws cloudformation deploy --stack-name eks-alb-controller --template-file CFN/06-irsa-alb-controller-role --parameter-overrides ProjectName= --region ap-south-1 --capabilities CAPABILITY_NAMED_IAM
+
+
+aws eks update-kubeconfig --region ap-south-1 --name eks-cluster-for-lab
+
+aws cloudformation deploy `
+  --stack-name eks-alb-controller `
+  --template-file CFN/06-irsa-alb-controller-role.yaml `
+  --parameter-overrides `
+    ProjectName=eks-demo `
+    OidcIssuerUrl= https://oidc.eks.ap-south-1.amazonaws.com/id/'01E405FB3EACF59AF93D87042C1DD703 `
+  --region ap-south-1 `
+  --capabilities CAPABILITY_NAMED_IAM
+
+
+aws eks update-nodegroup-config --cluster-name eks-demo --nodegroup-name eks-demo-ng --scaling-config minSize=1,maxSize=5,desiredSize=2
+
+
+
+kubectl exec -it -- /bin/bash cd /usr/share/nginx/html echo "<h1>Welcome to Amazon EKS 🚀</h1><p>Created by Student</p>" > index.html
+exit
+
+
+kubectl expose deployment welcome-app --type=LoadBalancer --port=80
+
+
+echo "<h4>Welcome to GLA Noida Learning Platform</h4><p>Modified inside Pod</p>" > index.html
